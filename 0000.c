@@ -100,6 +100,13 @@ int run_diff(int argc, char * const argv[]);
 int run_diff_f(char filename1[],int beggin1,int end1,char filename2[],int beggin2,int end2);
 int run_diff_c(int commit_id1,int commit_id2);
 bool is_commited(char *filepath,int commite_id);
+int run_merge(int argc, char * const argv[]);
+int merge_create_commit_file(int commit_ID,char branch_name[], char *message);
+int add_to_branchs(char branch_name[]);
+int merge_commit_file(int commit_ID, char* filepath, int head_commite_id);
+int merge_diff(char filename1[],char filename2[]);
+int add_to_commiiteds(char file_name[],int commit_ID);
+bool check_merging (int commit_id);
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         fprintf(stdout, "please enter a valid command");
@@ -150,6 +157,8 @@ int main(int argc, char *argv[]) {
         return run_tag(argc, argv);
     }else if (strcmp(argv[1], "diff") == 0){
         return run_diff(argc, argv);
+    }else if (strcmp(argv[1], "merge") == 0&&strcmp(argv[2], "-b") == 0){
+        return run_merge(argc, argv);
     }
     return 0;
 }
@@ -864,6 +873,10 @@ int run_commit(int argc, char * const argv[]) {
 }
 // returns new commit_ID
 int runing_commite(char message[],int commit_ID){
+    if(!tedede_khotoot(".neogit/staging")){
+        perror("Ni file is staged");
+        return 1;
+    }
     FILE *file = fopen(".neogit/staging", "r");
     if (file == NULL) return 1;
     char line[MAX_LINE_LENGTH];
@@ -885,10 +898,10 @@ int runing_commite(char message[],int commit_ID){
     }
     fclose(file); 
     // free staging
+    create_commit_file(commit_ID, message);
     file = fopen(".neogit/staging", "w");
     if (file == NULL) return 1;
     fclose(file);
-    create_commit_file(commit_ID, message);
     fprintf(stdout, "commit successfully with commit ID %d", commit_ID);
     return 0;
 }
@@ -980,6 +993,7 @@ int track_file(char *filepath) {
     FILE *file = fopen(".neogit/tracks", "a");
     if (file == NULL) return 1;
     fprintf(file, "%s\n", filepath);
+    fclose(file);
     return 0;
 }
 bool is_tracked(char *filepath) {
@@ -1028,27 +1042,12 @@ int create_commit_file(int commit_ID, char *message) {
             break;            
         } 
     }
-    fclose(file1);
     fprintf(file, "teedade filehaye commit shode:%d\n",tedede_khotoot(".neogit/staging"));
     fprintf(file, "files:\n");
-    DIR *dir = opendir(".");
-    struct dirent *entry;
-    if (dir == NULL) {
-        perror("Error opening current directory");
-        return 1;
-    }
-    char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG && is_tracked(entry->d_name)) {
-            char filename[120];
-            int file_last_commit_ID = find_file_last_commit(entry->d_name);
-            strcpy(filename,cwd);
-            strcat(filename,entry->d_name);
-            fprintf(file, "%s %d\n",filename, file_last_commit_ID);
-        }
-    }
-    closedir(dir); 
+    file1 = fopen(".neogit/staging", "r");
+    if (file == NULL) return 1;
+    while (fgets(line, sizeof(line), file1) != NULL) {fprintf(file,"%s\n",line);} 
+    fclose(file1);
     fclose(file);
     return 0;
 }
@@ -1524,11 +1523,7 @@ int commit_whith_branch (char branch_name []){
     fclose(tmp_file);
     remove(commit_filepath);
     rename(".neogit/commits/tmp", commit_filepath);
-    file = fopen(".neogit/branchs", "a");
-    if (file == NULL) return 1;
-    fprintf(file, "%s\n", branch_name);
-    fclose(file);
-    return 0;
+    return add_to_branchs(branch_name);
 }
 int show_branchs(){
     FILE *file = fopen(".neogit/branchs", "r");
@@ -1755,6 +1750,10 @@ int run_revert(int argc, char *argv[]){
     return 1;
 }
 int run_revrt_m_id(int argc, char * const argv[]){
+    if(check_merging){
+        perror("You can't merge because you are merged.");
+        return 1;
+    }
     int commit_ID= atoi(argv[argc-1]);
     char message[80];
     if(argc==3) strcpy(message,argv[2]);
@@ -1978,7 +1977,7 @@ int run_diff_f(char filename1[],int beggin1,int end1,char filename2[],int beggin
             puts(line2);
             printf("»»»»»\n");
         }
-        if(fgets(line1, sizeof(line1), file1) == NULL&&fgets(line2, sizeof(line2), file2) == NULL){
+        if(fgets(line1, sizeof(line1), file1) == NULL||fgets(line2, sizeof(line2), file2) == NULL){
             fclose(file1),fclose(file2);
             return 0;
         }
@@ -2068,6 +2067,215 @@ bool is_commited(char *filepath,int commite_id) {
             line[length - 1] = '\0';
         }
         if (strncmp(line, filepath,strlen(filepath)) == 0) return true;
+    }
+    fclose(file); 
+    return false;
+}
+int run_merge(int argc, char * const argv[]){
+    if(argc<6){
+        perror("you should enter more");
+        return 1;
+    }
+    int commit_ID = inc_last_commit_ID();
+    char message[72]="merged: ";
+    strcat(message,argv[3]);
+    strcat(message,"/");
+    strcat(message,argv[4]);
+    if(merge_create_commit_file(commit_ID,argv[5],message))  {return 1;}
+    if(add_to_branchs(argv[5]))  {return 1;}  
+    int head1_commit_id=find_last_commit_id_of_branch(argv[3]); 
+    int head2_commit_id=find_last_commit_id_of_branch(argv[4]); 
+    char commit_filepath[MAX_FILENAME_LENGTH];
+    strcpy(commit_filepath, ".neogit/commits/");
+    char tmp[10];
+    sprintf(tmp, "%d", head1_commit_id);
+    strcat(commit_filepath, tmp);
+    FILE *file = fopen(commit_filepath, "r");
+    if (file == NULL) return 1;
+    char line[MAX_LINE_LENGTH];
+    int check=0;
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if(check){
+        if(!is_commited(line,head2_commit_id)){
+            if(merge_commit_file(commit_ID,line,head1_commit_id)){return 1;}
+            if(add_to_commiiteds(line,commit_ID)){return 1;}
+        }
+        }
+        if (strcmp(line, "files:") == 0&&!check) {
+            check=1;       
+        } 
+    }
+    fclose(file);
+    char commit_filepath2[MAX_FILENAME_LENGTH];
+    strcpy(commit_filepath2, ".neogit/commits/");
+    char tmp2[10];
+    sprintf(tmp2, "%d", head2_commit_id);
+    strcat(commit_filepath2, tmp2);
+    file = fopen(commit_filepath2, "r");
+    if (file == NULL) return 1;
+    check=0;
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if(check){
+        if(!is_commited(line,head1_commit_id)){
+            if(merge_commit_file(commit_ID,line,head2_commit_id)){return 1;}
+            if(add_to_commiiteds(line,commit_ID)){return 1;}
+        }
+        }
+        if (strcmp(line, "files:") == 0&&!check) {
+            check=1;       
+        } 
+    }
+    rewind(file);
+    check=0;
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if(check){
+        if(is_commited(line,head1_commit_id)){
+            char filename1[100]=".neogit/files/";
+            strcpy(filename1,line);
+            strcat(filename1, "/");
+            char tmp1[10];
+            sprintf(tmp1, "%d", head1_commit_id);
+            strcat(filename1, tmp1);
+            char filename2[100]=".neogit/files/";
+            strcpy(filename2,line);
+            strcat(filename2, "/");
+            char tmp5[10];
+            sprintf(tmp5, "%d", head1_commit_id);
+            strcat(filename2, tmp5);
+            if(merge_diff(filename1,filename2))
+            return 1;
+        }
+        }
+        else if (strcmp(line, "files:") == 0) {
+            check=1;       
+        } 
+    }
+    fclose(file);
+    file=fopen(".neogit/mergs","a");
+    fprintf(file,"%d",commit_ID);
+    fclose(file);
+    return 0;
+}
+int add_to_branchs(char branch_name[]){
+    FILE*file = fopen(".neogit/branchs", "a");
+    if (file == NULL) return 1;
+    fprintf(file, "%s\n", branch_name);
+    fclose(file);
+    return 0;
+}
+int merge_commit_file(int commit_ID, char* filepath, int head_commite_id) {
+    FILE *read_file, *write_file;
+    char read_path[MAX_FILENAME_LENGTH];
+    strcpy(read_path, ".neogit/files/");
+    strcat(read_path, filepath);
+    strcat(read_path, "/");
+    char tmp1[10];
+    sprintf(tmp1, "%d", head_commite_id);
+    strcat(read_path, tmp1);
+    char write_path[MAX_FILENAME_LENGTH];
+    strcpy(write_path, ".neogit/files/");
+    strcat(write_path, filepath);
+    strcat(write_path, "/");
+    char tmp[10];
+    sprintf(tmp, "%d", commit_ID);
+    strcat(write_path, tmp);
+    read_file = fopen(read_path, "r");
+    if (read_file == NULL) return 1;
+    write_file = fopen(write_path, "w");
+    if (write_file == NULL) return 1;
+    char buffer;
+    buffer = fgetc(read_file);
+    while(buffer != EOF) {
+        fputc(buffer, write_file);
+        buffer = fgetc(read_file);
+    }
+    fclose(read_file);
+    fclose(write_file);
+    return 0;
+}
+int merge_create_commit_file(int commit_ID,char branch_name[], char *message){
+    char commit_filepath[MAX_FILENAME_LENGTH];
+    strcpy(commit_filepath, ".neogit/commits/");
+    char tmp[10];
+    sprintf(tmp, "%d", commit_ID);
+    strcat(commit_filepath, tmp);
+    FILE *file = fopen(commit_filepath, "w");
+    if (file == NULL) return 1;
+    fprintf(file, "message: %s\n",message);
+    time_t currentTime = time(NULL);
+    struct tm *localTime = localtime(&currentTime);
+    fprintf(file, "time: %s\n", asctime(localTime));
+    FILE *file1 = fopen(".neogit/config", "r");
+    if (file1 == NULL) return 1;
+    char line[MAX_LINE_LENGTH];
+    char a[100];
+    while (fgets(line, sizeof(line), file1) != NULL) {
+        if (strncmp(line, "username: ", 10) == 0) {
+            sscanf(line, "username: %s\n", &a);
+            fprintf(file, "username: %s\n",a);
+            break;            
+        } 
+    }
+    fclose(file1);
+    fprintf(file, "branch: %s\n",branch_name);
+    fprintf(file, "teedade filehaye commit shode:%d\n",tedede_khotoot(".neogit/staging"));
+    fprintf(file, "files:\n");
+    fclose(file);
+    return 0;
+}
+int merge_diff(char filename1[],char filename2[]){
+    FILE*file1=fopen(filename1,"r");
+    FILE*file2=fopen(filename2,"r");
+    char line1[MAX_LINE_LENGTH],line2[MAX_LINE_LENGTH];
+    int i=0,j=0;
+    while(1){
+        while(line1[0]=='\n'){
+            if(fgets(line1, sizeof(line1), file1) == NULL) {return 0;}
+            i++;
+        }
+        remove_spase(line1);
+        while(line2[0]=='\n'){
+            if(fgets(line2, sizeof(line2), file2) == NULL) {return 0;}
+            j++;
+        }
+        remove_spase(line2);
+        if(strcmp(line1,line2)!=0){
+            printf("«««««%s»»»»»\n",filename1);
+            printf("%d\n",i);
+            puts(line1);
+            printf("%d\n",j);
+            puts(line2);
+            printf("«««««%s»»»»»\n",filename2);
+        }
+        if(fgets(line1, sizeof(line1), file1) == NULL||fgets(line2, sizeof(line2), file2) == NULL){
+            fclose(file1),fclose(file2);
+            return 0;
+        }
+        i++,j++;
+    }
+}
+int add_to_commiiteds(char file_name[],int commit_ID){
+    char commit_filepath[MAX_FILENAME_LENGTH];
+    strcpy(commit_filepath, ".neogit/commits/");
+    char tmp[10];
+    sprintf(tmp, "%d", commit_ID);
+    strcat(commit_filepath, tmp);
+    FILE *file = fopen(commit_filepath, "a");
+    if (file == NULL) return 1;
+    fprintf(file, "%s\n", file_name);
+    fclose(file);
+    return 0;
+}
+bool check_merging (int commit_id){
+    FILE*file=fopen(".neogit/mergs","r");
+    if(file==NULL) {return false;}
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        int length = strlen(line);
+        if (length > 0 && line[length - 1] == '\n') {
+            line[length - 1] = '\0';
+        }
+        if (atoi(line)>commit_id) return true;
     }
     fclose(file); 
     return false;
