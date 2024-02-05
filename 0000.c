@@ -20,6 +20,8 @@ time_t parse_commit_date(char *date_str) ;
 int tedede_khotoot(char filename []);
 int teedade_kaleme(char a[]);
 bool is_count(char *string) ;
+bool is_valid(char *string) ;
+int is_neogit();
 void remove_spase(char line[]);
 void print_command(int argc, char * const argv[]);
 int being_alias(int argc, char * const argv[]);
@@ -37,6 +39,7 @@ int run_config_global_alis(int argc, char * const argv[]);
 int run_add(int argc, char * const argv[]);
 int add_to_staging(char *filepath);
 int add_to_staging2(char *filepath);
+int run_add_redo();
 int run_add_n (int argc, char *const argv[]);
 int run_reset(int argc, char * const argv[]);
 int reset_undo();
@@ -70,6 +73,7 @@ int run_log_n(char a[]);
 int run_log_branch(char a[]);
 int run_log_username(char a[]);
 int run_log_search(char a[]);
+int run_log_searchs(int argc, char * const argv[]);
 int run_log_since(char a[]);
 int run_log_before(char a[]);
 void show_commit(int commit_ID);
@@ -108,13 +112,18 @@ int merge_diff(char filename1[],char filename2[]);
 int add_to_commiiteds(char file_name[],int commit_ID);
 bool check_merging (int commit_id);
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
+    argc--;
+    for(int i=0;i<argc;i++){
+        strcpy(argv[i],argv[i+1]);
+        // printf("%d\n",i);
+    }
+    // printf("k");
+    if (argc < 2||strcmp(argv[0],".neogit")!=0) {
         fprintf(stdout, "please enter a valid command");
         return 1;
     }
     print_command(argc, argv);
-    if(being_alias(argc, argv))
-    argc=being_alias(argc, argv);
+    if(being_alias(argc, argv)) {argc=being_alias(argc, argv);}
     if (strcmp(argv[1], "init") == 0) {
         return run_init(argc, argv);
     } else if (strcmp(argv[1], "add") == 0&&strcmp(argv[2], "-n") == 0){
@@ -145,7 +154,7 @@ int main(int argc, char *argv[]) {
         if(remove_shortcut(argc, argv))
         perror("There isn't this shortcut");
         return 0;
-    }else if (strcmp(argv[1], "status") == 0&&argc==2){
+    }else if (strcmp(argv[1], "status") == 0){
         return run_status();
     } else if (strcmp(argv[1], "log") == 0){
         return run_log(argc, argv);
@@ -170,6 +179,7 @@ void print_command(int argc, char * const argv[]) {
 }
 int being_alias(int argc, char * const argv[]){
     FILE*file=fopen(".neogit/alias","r");
+    if(file==NULL) return 0;
     char line[MAX_LINE_LENGTH];
     while (fgets(line, sizeof(line), file) != NULL) {
         int length = strlen(line);
@@ -178,8 +188,7 @@ int being_alias(int argc, char * const argv[]){
         }
         int i=0;
         if (strcmp(line,argv[1]) == 0){
-        if(fgets(line, sizeof(line), file) != NULL)
-        while(line[0]==':'){
+        while(fgets(line, sizeof(line), file) != NULL&&line[0]==':'){
             strcpy(line,line+1);
             strcpy(argv[i],line);
             i++;
@@ -189,53 +198,58 @@ int being_alias(int argc, char * const argv[]){
         }
     }
     fclose(file);
+    return 0;
+}
+int is_neogit(){
+    char *folderName = ".neogit";
+    int found = 0;
     char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) == NULL) return 0;
+    if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
     char tmp_cwd[1024];
+    bool exists = false;
     struct dirent *entry;
     do {
         // find .neogit
-        DIR *dir = opendir(".");
+        DIR *dir;
+        struct dirent *entry;
+        dir = opendir(".");
         if (dir == NULL) {
             perror("Error opening current directory");
-            return 0;
+            return 1;
         }
         while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0){
-                FILE *file=fopen("alias","r");
-                if(file!=NULL) {
-                    while (fgets(line, sizeof(line), file) != NULL) {
-                    int length = strlen(line);
-                    if (length > 0 && line[length - 1] == '\n') {
-                    line[length - 1] = '\0';
-                    }
-                    int i=0;
-                    if (strcmp(line,argv[1]) == 0){
-                    if(fgets(line, sizeof(line), file) != NULL)
-                    while(line==":"){
-                    strcpy(line,line+1);
-                    strcpy(argv[i],line);
-                    i++;
-                    }
-                    fclose(file);
-                    closedir(dir);
-                    return i;
-                    }
-                    }
-                }
-                closedir(dir);
-                return 0;
-                }
-            }
+            if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0)
+                found = 1;
+                break;
+        }
         closedir(dir);
         // update current working directory
-        if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 0;
+        if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 1;
         // change cwd to parent
-        if (strcmp(tmp_cwd, "/") != 0) {
-            if (chdir("..") != 0) return 0;
-        }
-    } while (strcmp(tmp_cwd, "/") != 0);
+        if (strcmp(tmp_cwd, "c:\\") == 0) {break;}
+        else {
+            if (chdir("..") != 0) return 1;}
+    } while (1);
     return 0;
+}
+bool is_valid(char *string){
+    if(strcmp(string,"init")==0) return true;
+    if(strcmp(string,"merge")==0) return true;
+    if(strcmp(string,"commit")==0) return true;
+    if(strcmp(string,"config")==0) return true;
+    if(strcmp(string,"checkout")==0) return true;
+    if(strcmp(string,"replace")==0) return true;
+    if(strcmp(string,"remove")==0) return true;
+    if(strcmp(string,"status")==0) return true;
+    if(strcmp(string,"log")==0) return true;
+    if(strcmp(string,"branch")==0) return true;
+    if(strcmp(string,"tag")==0) return true;
+    if(strcmp(string,"revert")==0) return true;
+    if(strcmp(string,"diff")==0) return true;
+    if(strcmp(string,"set")==0) return true;
+    if(strcmp(string,"reset")==0) return true;
+    if(strcmp(string,"add")==0) return true;
+    return false;
 }
 int run_config(int argc, char * const argv[]){
     if(strcmp(argv[2],"-global")==0&&strcmp(argv[3],"user.name")==0&&argc>4) return global_username(argv[4]);
@@ -245,105 +259,76 @@ int run_config(int argc, char * const argv[]){
 }
 int global_username (char *username){
     char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
     char tmp_cwd[1024];
-    struct dirent *entry;
-    do {
-        // find .neogit
-        DIR *dir = opendir(".");
-        if (dir == NULL) {
-            perror("Error opening current directory");
-            return 1;
-        }
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0){
-                FILE *file = fopen("global", "r");
-                if (file != NULL){ 
-                FILE *tmp_file = fopen("tmp_global", "w");
-                if (tmp_file == NULL) return -1;
-                char line[MAX_LINE_LENGTH];
-                while (fgets(line, sizeof(line), file) != NULL) {
-                if (strncmp(line, "username:", 9) == 0) {
-                strcpy(line+9,line+strlen(line));
-                strcat(line,username);
-                }
-                fprintf(tmp_file, "%s\n", line);
-                }
-                fclose(file);
-                fclose(tmp_file);
-                remove("global");
-                rename("tmp_global", "global");
-                return 0;
-                }
-                else{
-                file = fopen("global", "w");
-                fprintf(file, "username:%s\n", username);
-                fclose(file);
-                return 0;
-                }
-            }
-        }
-        closedir(dir);
-        // update current working directory
-        if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 1;
-        // change cwd to parent
-        if (strcmp(tmp_cwd, "/") != 0) {
-            if (chdir("..") != 0) return 1;
-        }
-    } while (strcmp(tmp_cwd, "/") != 0);
+    FILE *file = fopen("c programs/global", "r");
+    int check=1;
+    if (file != NULL){ 
+    FILE *tmp_file = fopen("tmp_global", "w");
+    if (tmp_file == NULL) return -1;
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), file) != NULL) {
+    if (strncmp(line, "username:", 9) == 0) {
+        check=0;
+        strcpy(line+9,line+strlen(line));
+        strcat(line,username);
+    }
+    fprintf(tmp_file, "%s\n", line);
+    }
+    fclose(file);
+    fclose(tmp_file);
+    remove("c programs/global");
+    rename("tmp_global", "c programs/global");
+    if(check){
+        file = fopen("global", "a");
+        fprintf(file, "username:%s\n", line);
+        fclose(file);
+    }
+    return 0;
+    }
+    else{
+    file = fopen("global", "w");
+    fprintf(file, "username:%s\n", username);
+    fclose(file);
+    return 0;
+    }
     return 1;
 }
 int global_email (char *email){
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
     char tmp_cwd[1024];
-    struct dirent *entry;
-    do {
-        // find .neogit
-        DIR *dir = opendir(".");
-        if (dir == NULL) {
-            perror("Error opening current directory");
-            return 1;
-        }
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0){
-                FILE *file = fopen("global", "r");
-                if (file != NULL){ 
-                FILE *tmp_file = fopen("tmp_global", "w");
-                if (tmp_file == NULL) return -1;
-                char line[MAX_LINE_LENGTH];
-                while (fgets(line, sizeof(line), file) != NULL) {
-                if (strncmp(line, "email:", 6) == 0) {
-                strcpy(line+6,line+strlen(line));
-                strcat(line,email);
-                }
-                fprintf(tmp_file, "%s\n", line);
-                }
-                fclose(file);
-                fclose(tmp_file);
-                remove("global");
-                rename("tmp_global", "global");
-                fclose(file);
-                closedir(dir);
-                return 0;
-                }
-                else{
-                file = fopen("global", "w");
-                fprintf(file, "email:%s\n", email);
-                fclose(file);
-                closedir(dir);
-                return 0;
-                }
-            }
-        }
-        closedir(dir);
-        // update current working directory
-        if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 1;
-        // change cwd to parent
-        if (strcmp(tmp_cwd, "/") != 0) {
-            if (chdir("..") != 0) return 1;
-        }
-    } while (strcmp(tmp_cwd, "/") != 0);
+    FILE *file = fopen("c programs/global", "r");
+    if (file != NULL){ 
+        int check=1;
+    FILE *tmp_file = fopen("tmp_global", "w");
+    if (tmp_file == NULL) return -1;
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), file) != NULL) {
+    if (strncmp(line, "email:", 6) == 0) {
+    check=0;
+    strcpy(line+6,line+strlen(line));
+    strcat(line,email);
+    }
+    fprintf(tmp_file, "%s\n", line);
+    }
+    fclose(file);
+    fclose(tmp_file);
+    remove("c programs/global");
+    rename("tmp_global", "c programs/global");
+    fclose(file);
+    if(check){
+        file = fopen("global", "a");
+        fprintf(file, "email:%s\n", line);
+        fclose(file);
+    }
+    return 0;
+    }
+    else{
+    file = fopen("global", "w");
+    fprintf(file, "email:%s\n", email);
+    fclose(file);
+    return 0;
+    }
     return 1;
 }
 int local_username (char *username){
@@ -385,6 +370,8 @@ int local_email (char *email){
     return 0;
 }
 int run_init(int argc, char * const argv[]) {
+    char *folderName = ".neogit";
+    int found = 0;
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
     char tmp_cwd[1024];
@@ -392,34 +379,38 @@ int run_init(int argc, char * const argv[]) {
     struct dirent *entry;
     do {
         // find .neogit
-        DIR *dir = opendir(".");
+        DIR *dir;
+        struct dirent *entry;
+        dir = opendir(".");
         if (dir == NULL) {
             perror("Error opening current directory");
             return 1;
         }
         while ((entry = readdir(dir)) != NULL) {
             if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0)
-                exists = true;
+                found = 1;
+                break;
         }
         closedir(dir);
         // update current working directory
         if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 1;
         // change cwd to parent
-        if (strcmp(tmp_cwd, "/") != 0) {
-            if (chdir("..") != 0) return 1;
-        }
-    } while (strcmp(tmp_cwd, "/") != 0);
-    // return to the initial cwd
-    if (chdir(cwd) != 0) return 1;
-    if (!exists) {
-        if (mkdir(".neogit") != 0) return 1;{
+        if (strcmp(tmp_cwd, "c:\\") == 0) {break;}
+        else {
+            if (chdir("..") != 0) return 1;}
+    } while (strcmp(tmp_cwd, "C:\\"));
+    if (found) {
+        perror("neogit repository has already initialized");
+    } else {
+        if (mkdir(".neogit") != 0) return 1;
+        {
             char username[50],email[50];
-            if(find_username(username)||find_email(email))
-            return 1;
+            if(find_username(username)||find_email(email)){
+                perror("you should write your user nsme and email in global first.");
+                return 1;
+            }
             return create_configs(username, email);
         }
-    } else {
-        perror("neogit repository has already initialized");
     }
     return 0;
 }
@@ -451,107 +442,54 @@ int create_configs(char *username, char *email) {
     return 0;
 }
 int find_username(char*username){
-    char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
-    char tmp_cwd[1024];
-    struct dirent *entry;
-    do {
-        // find .neogit
-        DIR *dir = opendir(".");
-        if (dir == NULL) {
-            perror("Error opening current directory");
-            return 1;
-        }
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0){
-                FILE *file = fopen("global", "r");
-                if (file != NULL){ 
-                char line[MAX_LINE_LENGTH];
-                while (fgets(line, sizeof(line), file) != NULL) {
-                if (strncmp(line, "username:", 9) == 0) {
-                strcpy(line,line+9);
-                strcpy(username,line);
-                fclose(file);
-                return 0;
-                }
-                }
-                fclose(file);
-                closedir(dir);
-                }
-                else{
-                closedir(dir);
-                fclose(file);
-                return 1;
-                }
-            }
-        }
-        closedir(dir);
-        // update current working directory
-        if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 1;
-        // change cwd to parent
-        if (strcmp(tmp_cwd, "/") != 0) {
-            if (chdir("..") != 0) return 1;
-        }
-    } while (strcmp(tmp_cwd, "/") != 0);
-    return 1;
+FILE *file = fopen("c programs/global", "r");
+if (file != NULL){ 
+char line[MAX_LINE_LENGTH];
+while (fgets(line, sizeof(line), file) != NULL) {
+if (strncmp(line, "username:", 9) == 0) {
+    strcpy(line,line+9);
+    strcpy(username,line);
+    fclose(file);
+    return 0;
+}
+}
+return 1;
+}
 }
 int find_email(char*email){
-    char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) == NULL) return 1;
-    char tmp_cwd[1024];
-    struct dirent *entry;
-    do {
-        // find .neogit
-        DIR *dir = opendir(".");
-        if (dir == NULL) {
-            perror("Error opening current directory");
-            return 1;
-        }
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0){
-                FILE *file = fopen("global", "r");
-                if (file != NULL){ 
-                char line[MAX_LINE_LENGTH];
-                while (fgets(line, sizeof(line), file) != NULL) {
-                if (strncmp(line, "email:", 6) == 0) {
-                strcpy(line,line+6);
-                strcpy(email,line);
-                fclose(file);
-                return 0;
-                }
-                }
-                fclose(file);
-                closedir(dir);
-                }
-                else{
-                closedir(dir);
-                fclose(file);
-                return 1;
-                }
-            }
-        }
-        closedir(dir);
-        // update current working directory
-        if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 1;
-        // change cwd to parent
-        if (strcmp(tmp_cwd, "/") != 0) {
-            if (chdir("..") != 0) return 1;
-        }
-    } while (strcmp(tmp_cwd, "/") != 0);
-    return 1;
+FILE *file = fopen("c programs/global", "r");
+if (file != NULL){ 
+char line[MAX_LINE_LENGTH];
+while (fgets(line, sizeof(line), file) != NULL) {
+if (strncmp(line, "email:", 6) == 0) {
+    strcpy(line,line+6);
+    strcpy(email,line);
+    fclose(file);
+    return 0;
+}
+}
+fclose(file);
+}
+return 1;
 }
 int run_congig_alias(int argc, char * const argv[]){
     if(strcmp(argv[2],"(-global)")==0){
+        if(is_valid(argv[5])&&strcmp(argv[4],".neogit")==0)
         return run_config_global_alis(argc,argv);
+        perror("This is not a invalic cmmand.");
     }
     else{
-        FILE *file=fopen(".neogit/alias","a");
-        strcpy(argv[2],argv[2]+6);
-        fprintf(file,"%s\n",argv[2]);
-        for(int i=3;i<argc;i++)
-        fprintf(file,":%s\n",argv[i]);
-        fclose(file);
-        return 0;
+        if(is_valid(argv[4])&&strcmp(argv[3],".neogit")==0)
+        {
+            FILE *file=fopen(".neogit/alias","a");
+            strcpy(argv[2],argv[2]+6);
+            fprintf(file,"%s\n",argv[2]);
+            for(int i=3;i<argc;i++)
+            fprintf(file,":%s\n",argv[i]);
+            fclose(file);
+            return 0;
+        }
+        perror("This is not a invalic cmmand.");
     }
 }
 int run_config_global_alis(int argc, char * const argv[]){
@@ -569,8 +507,6 @@ int run_config_global_alis(int argc, char * const argv[]){
         while ((entry = readdir(dir)) != NULL) {
             if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".neogit") == 0){
                 FILE *file=fopen("alias","a");
-                if(file==NULL) 
-                file=fopen("alias","w");
                 strcpy(argv[2],argv[2]+6);
                 fprintf(file,"%s\n",argv[2]);
                 for(int i=3;i<argc;i++)
@@ -584,10 +520,10 @@ int run_config_global_alis(int argc, char * const argv[]){
         // update current working directory
         if (getcwd(tmp_cwd, sizeof(tmp_cwd)) == NULL) return 1;
         // change cwd to parent
-        if (strcmp(tmp_cwd, "/") != 0) {
+        if (strcmp(tmp_cwd, "C:\\") != 0) {
             if (chdir("..") != 0) return 1;
         }
-    } while (strcmp(tmp_cwd, "/") != 0);
+    } while (strcmp(tmp_cwd, "C:\\") != 0);
     return 1;
 }
 int run_add(int argc, char *const argv[]) {
@@ -597,58 +533,64 @@ int run_add(int argc, char *const argv[]) {
         return 1;
     }
     int a;
-    if(strstr(argv[2],"*")!=NULL){      
+    if(strstr(argv[2],"*")!=NULL||strstr(argv[2],"/")!=NULL||strstr(argv[2],".")!=NULL){      
         struct _finddata_t f;
         int done;
         done=_findfirst(argv[2],&f);
         while (!done) {
-            if(fopen(f.name ,"r")!=NULL)
-            a= add_to_staging(f.name);
+            FILE*file=fopen(f.name ,"r");
+            if(file!=NULL) {
+                if(add_to_staging(f.name))
+                a=0;
+                fclose(file);
+            }
             else
-            a= add_to_staging2(f.name);
+            if(add_to_staging2(f.name))
+            a=0;
             done=_findnext(f.attrib,&f);
         } 
-        return a;
+        return 0;
     }
+    if(strcmp(argv[2],"-redo")==0){return run_add_redo();}
     if(strcmp(argv[2],"-f")==0)
     for(int i=3;i<argc;i++){
-    if(fopen(argv[i],"r")!=NULL){
+    FILE *file=fopen(argv[2],"r");
+    if(file!=NULL){
     if(add_to_staging(argv[i]))
     perror("eror in adding");
+    fclose(file);
     }
     else {
+        fclose(file);
         DIR*dir;
         dir=opendir(argv[i]);
         if(dir!=NULL){
         if(add_to_staging2(argv[i]))
         perror("eror in adding");
+        closedir(dir);
         }
         else
         perror("this adderes is invalid");
     }
     return a;
     }
-    if(fopen(argv[2],"r")!=NULL)
-    return add_to_staging(argv[2]);
+    FILE *file=fopen(argv[2],"r");
+    if(file!=NULL){
+        fclose(file);
+        return add_to_staging(argv[2]);
+    }
+    fclose(file);
     DIR*dir;
     dir=opendir(argv[2]);
-    if(dir!=NULL)
-    return add_to_staging2(argv[2]);
+    if(dir!=NULL){
+        closedir(dir);
+        return add_to_staging2(argv[2]);
+    }
     perror("this adderes is invalid");
 }
 int add_to_staging(char *filepath) {
-    FILE *file = fopen(".neogit/staging", "r");
-    if (file == NULL) return 1;
-    char line[MAX_LINE_LENGTH];
-    while (fgets(line, sizeof(line), file) != NULL) {
-        int length = strlen(line);
-        // remove '\n'
-        if (length > 0 && line[length - 1] == '\n') {
-            line[length - 1] = '\0';
-        }
-        if (strcmp(filepath, line) == 0) return 0;
-    }
-    fclose(file);
+    FILE *file ;
+    if(is_staged(filepath)){return 1;}
     file = fopen(".neogit/staging","a");
     if (file == NULL) return 1;
     fprintf(file, "%s\n", filepath);
@@ -677,6 +619,24 @@ int add_to_staging2(char *filepath) {
         }
         closedir(dir);
         return 0;
+}
+int run_add_redo(){
+    int a;
+    FILE *file = fopen(".neogit/tracks", "r");
+    if (file == NULL) return false;
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        int length = strlen(line);
+        // remove '\n'
+        if (length > 0 && line[length - 1] == '\n') {
+            line[length - 1] = '\0';
+        }
+        if(add_to_staging(line)){
+            a=1;
+        }
+    }
+    fclose(file); 
+    return 0;
 }
 int run_add_n (int argc, char *const argv[]){
     if(argc>3){
@@ -740,24 +700,55 @@ int run_reset(int argc, char *const argv[]) {
         return 1;
     }
     if(strcmp(argv[2],"-undo")==0){
-        if(reset_undo)
+        if(reset_undo())
         return 1; 
         return 0;       
+    }
+    if(strcmp(argv[2],"-f")==0){
+        for(int i=3;i<argc;i++){
+            if(fopen(argv[2],"r")!=NULL){
+            if(remove_from_staging(argv[i]))
+            perror("eror in removing");
+            }
+        else {
+        DIR*dir;
+        dir=opendir(argv[i]);
+        if(dir!=NULL){
+        if(remove_from_staging2(argv[i]))
+        perror("eror in adding");
+        closedir(dir);
+        }
+        else
+        perror("this adderes is invalid");
+        }
+        return 0;
+        }
+    }
+    if(strstr(argv[2],"*")!=NULL||strstr(argv[2],"/")!=NULL||strstr(argv[2],".")!=NULL){      
+        int a;
+        struct _finddata_t f;
+        int done;
+        done=_findfirst(argv[2],&f);
+        while (!done) {
+            FILE*file=fopen(f.name ,"r");
+            if(file!=NULL) {
+                if(remove_from_staging(f.name))
+                a=0;
+                fclose(file);
+            }
+            else
+            if(remove_from_staging2(f.name))
+            a=0;
+            done=_findnext(f.attrib,&f);
+        } 
+        return 0;
     }
     if(fopen(argv[2],"r")!=NULL)
     return remove_from_staging(argv[2]);
     DIR*dir=opendir(argv[2]);
-    struct dirent *entry;
     if(dir!=NULL){
-        while ((entry = readdir(dir)) != NULL) {
-            if(fopen(entry->d_name,"r")!=NULL){
-            if(remove_from_staging(entry->d_name))
-            perror("Error removing files"); }
-            else if(remove_from_staging2(entry->d_name)) 
-            perror("Error removing diorectory"); 
-        }
-        closedir(dir);
-        return 0;
+     if(!remove_from_staging2(argv[2])) 
+     return 0;
     }    
     perror("this adderes is invalid"); 
     return 1;   
@@ -824,7 +815,7 @@ int reset_undo(){
     FILE *tmp_file = fopen(".neogit/tmp_staging", "w");
     if (tmp_file == NULL) return 1;
     char line[MAX_LINE_LENGTH];
-    while (fgets(line, sizeof(line), file) != NULL) {
+    while (fgets(line, sizeof(line), file) != NULL&&b!=a) {
         int length = strlen(line);
         // remove '\n'
         if (length > 0 && line[length - 1] == '\n') {
@@ -832,8 +823,6 @@ int reset_undo(){
         }
         fputs(line, tmp_file);
         b--;
-        if(!b-a)
-        break;
     }
     fclose(file);
     fclose(tmp_file);
@@ -1295,7 +1284,7 @@ int run_log (int argc, char * const argv[]){
     if(strcmp(argv[2],"-n")==0&&argc==4) return run_log_n(argv[3]);
     if(strcmp(argv[2],"-branch")==0&&argc==4) return run_log_branch(argv[3]);
     if(strcmp(argv[2],"-author")==0&&argc==4) return run_log_username(argv[3]);
-    if(strcmp(argv[2],"-search")==0&&argc==4) return run_log_search(argv[3]);
+    if(strcmp(argv[2],"-search")==0) return run_log_searchs(argc,argv);
     if(strcmp(argv[2],"-since")==0&&argc==4) return run_log_since(argv[3]);
     if(strcmp(argv[2],"-before")==0&&argc==4) return run_log_before(argv[3]);
     return 1;
@@ -1389,30 +1378,39 @@ int run_log_username(char a[]){
 }
 int run_log_search(char a[]){
     int check=1;
-    FILE *file = fopen(".neogit/config", "r");
-    if (file == NULL) return -1;
-    int last_commit_ID;
-    char line[MAX_LINE_LENGTH];
-    while (fgets(line, sizeof(line), file) != NULL) {
-        if (strncmp(line, "last_commit_ID", 14) == 0) {
-            sscanf(line, "last_commit_ID: %d\n", &last_commit_ID);
-            break;
-        }
-    }
-    fclose(file);
+    int last_commit_ID=find_last_commit_ID();
     for(int i=last_commit_ID;i>0;i--){
         char word[100];
         if(!find_message(word,i)){
             if(strstr(word,a)!=NULL){
                 check=0;
                 show_commit(i);
-                }
+            }
             }
         else return -1;
     }
     if(check)
     perror("There is no this word in any commit");
     return 0;
+}
+int run_log_searchs(int argc, char * const argv[]){
+    int check=1;
+    int last_commit_ID=find_last_commit_ID();
+    for(int j=3;j<argc;j++)
+    {
+    for(int i=last_commit_ID;i>0;i--){
+        char message[100];
+        if(!find_message(message,i)){
+            if(strstr(message,argv[j])!=NULL){
+                check=0;
+                show_commit(i);
+            }
+            }
+        else return -1;
+    }
+    if(check)
+    perror("There is no this word in any commit");
+    return 0;}
 }
 int run_log_since(char a[]){
     FILE *file = fopen(".neogit/config", "r");
@@ -1571,6 +1569,10 @@ int run_checkout(int argc, char * const argv[]) {
     int commit_ID;
     if(strcmp(argv[2],"HEAD")==0){
         commit_ID =find_head_commit_id();
+    }
+    else if(strncmp(argv[2],"HEAD-",5)==0){
+        strcpy(argv[2],argv[2]+5);
+        commit_ID =find_head_commit_id()-atoi(argv[2]);
     }
     else if(is_count(argv[2])){
     commit_ID = atoi(argv[2]);}
