@@ -1973,9 +1973,9 @@ int run_diff_f(char filename1[],int beggin1,int end1,char filename2[],int beggin
         remove_spase(line2);
         if(strcmp(line1,line2)!=0){
             printf("«««««\n");
-            printf("%s-%d\n",filename1,i);
+            printf("\033[32m %s-%d\n \033[0m",filename1,i);
             puts(line1);
-            printf("%s-%d\n",filename2,j);
+            printf("\033[31m %s-%d\n \033[0m",filename2,j);
             puts(line2);
             printf("»»»»»\n");
         }
